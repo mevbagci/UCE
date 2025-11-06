@@ -11,6 +11,8 @@ CREATE OR REPLACE FUNCTION uce_search_layer_fulltext(
     IN useTsVector boolean DEFAULT true,
     IN source_table text DEFAULT 'page',
     IN schema_name text DEFAULT 'public',
+    IN p_user_name text DEFAULT NULL,
+    IN p_min_level integer DEFAULT 1,
     OUT total_count_out integer,
     OUT document_ids integer[],
     OUT named_entities_found text[][],
@@ -122,7 +124,7 @@ BEGIN
                 d.documenttitle
             FROM page p
             %s
-            JOIN document d ON d.id = p.document_id
+            JOIN permitted_documents($13, $14) d ON d.id = p.document_id
             WHERE (
                 ($4 IS NOT NULL AND $4 <> '''' AND p.textsearch @@ %s)
                 OR ($4 IS NULL OR $4 = '''')
@@ -166,7 +168,7 @@ BEGIN
                         )
 				    )
 				)
-			JOIN document d ON um.document_id = d.id AND d.corpusid = $2
+			JOIN permitted_documents($13, $14) d ON um.document_id = d.id AND d.corpusid = $2
 			%s
 			GROUP BY um.document_id
 			HAVING COUNT(ef.key) = (SELECT COUNT(*) FROM expanded_filters)
@@ -198,7 +200,7 @@ BEGIN
                 lp.rank,
                 JSONB_AGG((' || snippet_query || ')) AS snippets
             FROM limited_pages lp
-            JOIN document d ON d.id = lp.doc_id
+            JOIN permitted_documents($13, $14) d ON d.id = lp.doc_id
             GROUP BY d.id, lp.rank
             ORDER BY lp.rank DESC
         ),

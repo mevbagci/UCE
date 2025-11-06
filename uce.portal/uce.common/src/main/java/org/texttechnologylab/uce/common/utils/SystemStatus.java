@@ -7,6 +7,7 @@ import org.texttechnologylab.uce.common.config.UceConfig;
 import org.texttechnologylab.uce.common.cronjobs.SystemJob;
 import org.texttechnologylab.uce.common.exceptions.DatabaseOperationException;
 import org.texttechnologylab.uce.common.models.util.HealthStatus;
+import org.texttechnologylab.uce.common.security.DocumentAccessManager;
 import org.texttechnologylab.uce.common.services.PostgresqlDataInterface_Impl;
 
 import java.io.IOException;
@@ -26,7 +27,10 @@ public final class SystemStatus {
     private static final Logger logger = LogManager.getLogger(SystemStatus.class);
 
     public static void initSystemStatus(long cleanupInterval, ApplicationContext serviceContext) {
-        Runnable runnable = new SystemJob(cleanupInterval, serviceContext);
+        var accessManager = serviceContext.getBean(DocumentAccessManager.class);
+        
+        Runnable runnable = accessManager.wrapAdmin(new SystemJob(cleanupInterval, serviceContext));
+
         var sessionJob = new Thread(runnable);
         sessionJob.start();
     }

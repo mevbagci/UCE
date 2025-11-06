@@ -1,11 +1,27 @@
 package org.texttechnologylab.uce.common.services;
 
+import java.util.List;
+
 import org.texttechnologylab.uce.common.exceptions.DatabaseOperationException;
-import org.texttechnologylab.uce.common.models.authentication.UceUser;
+import org.texttechnologylab.uce.common.exceptions.DocumentAccessDeniedException;
 import org.texttechnologylab.uce.common.models.biofid.BiofidTaxon;
 import org.texttechnologylab.uce.common.models.biofid.GazetteerTaxon;
 import org.texttechnologylab.uce.common.models.biofid.GnFinderTaxon;
-import org.texttechnologylab.uce.common.models.corpus.*;
+import org.texttechnologylab.uce.common.models.corpus.Corpus;
+import org.texttechnologylab.uce.common.models.corpus.CorpusTsnePlot;
+import org.texttechnologylab.uce.common.models.corpus.Document;
+import org.texttechnologylab.uce.common.models.corpus.GeoName;
+import org.texttechnologylab.uce.common.models.corpus.KeywordDistribution;
+import org.texttechnologylab.uce.common.models.corpus.Lemma;
+import org.texttechnologylab.uce.common.models.corpus.LexiconEntry;
+import org.texttechnologylab.uce.common.models.corpus.LexiconEntryId;
+import org.texttechnologylab.uce.common.models.corpus.NamedEntity;
+import org.texttechnologylab.uce.common.models.corpus.Page;
+import org.texttechnologylab.uce.common.models.corpus.Sentence;
+import org.texttechnologylab.uce.common.models.corpus.Time;
+import org.texttechnologylab.uce.common.models.corpus.UCELog;
+import org.texttechnologylab.uce.common.models.corpus.UCEMetadata;
+import org.texttechnologylab.uce.common.models.corpus.UCEMetadataFilter;
 import org.texttechnologylab.uce.common.models.corpus.links.AnnotationLink;
 import org.texttechnologylab.uce.common.models.corpus.links.AnnotationToDocumentLink;
 import org.texttechnologylab.uce.common.models.corpus.links.DocumentLink;
@@ -15,9 +31,11 @@ import org.texttechnologylab.uce.common.models.gbif.GbifOccurrence;
 import org.texttechnologylab.uce.common.models.globe.GlobeTaxon;
 import org.texttechnologylab.uce.common.models.imp.ImportLog;
 import org.texttechnologylab.uce.common.models.imp.UCEImport;
-import org.texttechnologylab.uce.common.models.search.*;
-
-import java.util.List;
+import org.texttechnologylab.uce.common.models.search.AnnotationSearchResult;
+import org.texttechnologylab.uce.common.models.search.DocumentSearchResult;
+import org.texttechnologylab.uce.common.models.search.OrderByColumn;
+import org.texttechnologylab.uce.common.models.search.SearchLayer;
+import org.texttechnologylab.uce.common.models.search.SearchOrder;
 
 public interface DataInterface {
 
@@ -54,8 +72,9 @@ public interface DataInterface {
 
     /**
      * Stores a document topic distributions by a document.
+     * @throws DocumentAccessDeniedException 
      */
-    public void saveDocumentKeywordDistribution(Document document) throws DatabaseOperationException;
+    public void saveDocumentKeywordDistribution(Document document) throws DatabaseOperationException, DocumentAccessDeniedException;
 
     /**
      * Returns a corpus by name. As they aren't unique, it returns the first match.
@@ -72,7 +91,7 @@ public interface DataInterface {
      * Gets all documents that belong to the given corpus
      *
      */
-    public List<Document> getDocumentsByCorpusId(long corpusId, int skip, int take, UceUser user) throws DatabaseOperationException;
+    public List<Document> getDocumentsByCorpusId(long corpusId, int skip, int take) throws DatabaseOperationException;
 
     /**
      * Gets all DocumentLinks that belong to a document.
@@ -101,13 +120,15 @@ public interface DataInterface {
 
     /**
      * Gets the data required for the world globus to render correctly.
+     * @throws DocumentAccessDeniedException 
      */
-    public List<GlobeTaxon> getGlobeDataForDocument(long documentId) throws DatabaseOperationException;
+    public List<GlobeTaxon> getGlobeDataForDocument(long documentId) throws DatabaseOperationException, DocumentAccessDeniedException;
 
     /**
      * Gets many documents by their ids
+     * @throws DocumentAccessDeniedException 
      */
-    public List<Document> getManyDocumentsByIds(List<Integer> documentIds) throws DatabaseOperationException;
+    public List<Document> getManyDocumentsByIds(List<Long> documentIds) throws DatabaseOperationException, DocumentAccessDeniedException;
 
     /**
      * Returns a list of lexicon entries depending on the parameters.
@@ -147,8 +168,7 @@ public interface DataInterface {
                                                                    SearchOrder order,
                                                                    OrderByColumn orderedByColumn,
                                                                    long corpusId,
-                                                                   List<UCEMetadataFilterDto> filters,
-                                                                   UceUser user)
+                                                                   List<UCEMetadataFilterDto> filters)
         throws DatabaseOperationException;
     /**
      * Searches for documents with a variety of criterias. It's the main db search of the biofid portal
@@ -170,7 +190,8 @@ public interface DataInterface {
                                                           List<UCEMetadataFilterDto> uceMetadataFilters,
                                                           boolean useTsVectorSearch,
                                                           String schema,
-                                                          String sourceTable) throws DatabaseOperationException;
+                                                          String sourceTable
+                                                          ) throws DatabaseOperationException;
 
     /**
      * Gets a Topic Distribution determined by the T generic inheritance.
@@ -196,10 +217,12 @@ public interface DataInterface {
 
     /**
      * Gets a document by its corpusId and the documentId, which isn't its primary key identifier "id".
+     * @throws DocumentAccessDeniedException 
+     * @throws NumberFormatException 
      */
-    public Document getDocumentByCorpusAndDocumentId(long corpusId, String documentId) throws DatabaseOperationException;
+    public Document getDocumentByCorpusAndDocumentId(long corpusId, String documentId) throws DatabaseOperationException, NumberFormatException, DocumentAccessDeniedException;
 
-    public List<UCEMetadata> getUCEMetadataByDocumentId(long documentId) throws DatabaseOperationException;
+    public List<UCEMetadata> getUCEMetadataByDocumentId(long documentId) throws DatabaseOperationException, DocumentAccessDeniedException;
 
     /**
      * Gets a single UCEImport object from the database.
@@ -208,8 +231,9 @@ public interface DataInterface {
 
     /**
      * Generic operation that fetches documents given the parameters
+     * @throws DocumentAccessDeniedException 
      */
-    public Document getDocumentById(long id) throws DatabaseOperationException;
+    public Document getDocumentById(long id) throws DatabaseOperationException, DocumentAccessDeniedException;
 
     /**
      * Gets a fully initialized page by its id.
@@ -292,7 +316,7 @@ public interface DataInterface {
     /**
      * Gets a complete document, alongside its lists, from the database.
      */
-    public Document getCompleteDocumentById(long id, int skipPages, int pageLimit, UceUser user) throws DatabaseOperationException;
+    public Document getCompleteDocumentById(long id, int skipPages, int pageLimit) throws DatabaseOperationException;
 
     /**
      * Saves or updates an ImportLog belonging to a UCEImport.
@@ -318,14 +342,16 @@ public interface DataInterface {
 
     /**
      * Stores the complete document with all its lists in the database.
+     * @throws DocumentAccessDeniedException 
      *
      */
-    public void saveDocument(Document document) throws DatabaseOperationException;
+    public void saveDocument(Document document) throws DatabaseOperationException, DocumentAccessDeniedException;
 
     /**
      * Updates a document
+     * @throws DocumentAccessDeniedException 
      */
-    public void updateDocument(Document document) throws DatabaseOperationException;
+    public void updateDocument(Document document) throws DatabaseOperationException, DocumentAccessDeniedException;
 
     /**
      * Saves a UCELog to the database. In those, we log requests from the user and more.

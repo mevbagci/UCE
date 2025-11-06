@@ -3,6 +3,7 @@ package org.texttechnologylab.uce.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.ApplicationContext;
+import org.texttechnologylab.models.authentication.DocumentPermission;
 import org.texttechnologylab.uce.common.config.CorpusConfig;
 import org.texttechnologylab.uce.common.exceptions.ExceptionUtils;
 import org.texttechnologylab.uce.common.models.authentication.UceUser;
@@ -129,8 +130,7 @@ public class SearchCompleteNegation implements Search {
                         searchState.getOrder(),
                         searchState.getOrderBy(),
                         searchState.getCorpusId(),
-                        searchState.getUceMetadataFilters(),
-                        user),
+                        searchState.getUceMetadataFilters()),
                 (ex) -> logger.error("Error executing semantic search on database.", ex));
     }
 
@@ -152,6 +152,9 @@ public class SearchCompleteNegation implements Search {
         searchState.setFoundScopes(documentSearchResult.getFoundScopes());
         searchState.setFoundXScopes(documentSearchResult.getFoundXscopes());
         searchState.setFoundEvents(documentSearchResult.getFoundEvents());
+
+        // Add user name for authentication
+        searchState.setSessionUser(user != null ? user.getUsername() : DocumentPermission.ADMIN_BYPASS_USERNAME);
 
         ArrayList<String> allSearchTokens = new ArrayList<>();
         allSearchTokens.addAll(searchState.getCue());

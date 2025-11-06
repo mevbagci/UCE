@@ -298,6 +298,9 @@ public class SearchApi implements UceApi {
         }
 
         try {
+
+            UceUser uceUser = ctx.sessionAttribute("uceUser");
+
             var annotations = db.getAnnotationsOfCorpus(corpusId, 0, 250);
             model.put("time", annotations.stream().filter(a -> a.getInfo().equals("time")).toList());
             model.put("taxon", annotations.stream().filter(a -> a.getInfo().equals("taxon")).toList());

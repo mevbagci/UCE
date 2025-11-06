@@ -54,6 +54,8 @@ public class CorpusUniverseApi implements UceApi {
         try {
             var document = db.getDocumentById(documentId);
             model.put("document", document);
+
+        // TODO in case of DocumentAccessDeniedException display a proper message
         } catch (Exception ex) {
             logger.error("Error fetching the document for the node inspector with id: " + documentId, ex);
             ctx.render("defaultError.ftl");
@@ -119,7 +121,7 @@ public class CorpusUniverseApi implements UceApi {
 
                 // Then, get the documents themselves for those embeddings
                 var documents = ExceptionUtils.tryCatchLog(() -> db.getManyDocumentsByIds(
-                                docEmbeddings.stream().map(de -> (int) de.getDocument_id()).toList()),
+                                docEmbeddings.stream().map(de -> (long) de.getDocument_id()).toList()),
                         (ex) -> logger.error("Error fetching the documents belonging to embeddings with documentIds: "
                                 + docEmbeddings.stream().map(DocumentEmbedding::getDocument_id), ex));
                 if (documents == null){

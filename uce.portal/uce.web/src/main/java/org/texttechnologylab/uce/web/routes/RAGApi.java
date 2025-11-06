@@ -15,6 +15,7 @@ import org.texttechnologylab.uce.common.exceptions.ExceptionUtils;
 import org.texttechnologylab.uce.common.models.corpus.Document;
 import org.texttechnologylab.uce.common.models.corpus.Image;
 import org.texttechnologylab.uce.common.models.rag.*;
+import org.texttechnologylab.uce.common.security.DocumentAccessManager;
 import org.texttechnologylab.uce.common.services.PostgresqlDataInterface_Impl;
 import org.texttechnologylab.uce.common.services.RAGService;
 import org.texttechnologylab.uce.common.utils.SystemStatus;
@@ -33,11 +34,14 @@ public class RAGApi implements UceApi {
     private final CommonConfig commonConfig = new CommonConfig();
     private final Map<UUID, RAGChatState> activeRagChatStates = new HashMap<>();
 
+    private final DocumentAccessManager accessManager;
+
     public RAGApi(ApplicationContext serviceContext,
                   Configuration freemarkerConfig) {
         this.freemarkerConfig = freemarkerConfig;
         this.db = serviceContext.getBean(PostgresqlDataInterface_Impl.class);
         this.ragService = serviceContext.getBean(RAGService.class);
+        this.accessManager = serviceContext.getBean(DocumentAccessManager.class);
     }
 
     /**
@@ -231,7 +235,7 @@ public class RAGApi implements UceApi {
                     if (documentTitle != null && !documentTitle.isEmpty()) {
                         try {
                             Integer documentIdInt = Integer.parseInt(documentTitle);
-                            Document doc = db.getDocumentById(documentIdInt);
+                            Document doc = db.getDocumentById(documentIdInt); 
                             if (doc != null) {
                                 documentId = doc.getId();
                                 System.out.println("Found document ID from ID: " + documentTitle);
@@ -316,7 +320,9 @@ public class RAGApi implements UceApi {
                 else {
                     nearestDocumentChunkEmbeddings = ragService.getClosestDocumentChunkEmbeddings(userMessage, amountOfDocs, -1);
                     // foreach fetched document embedding, we also fetch the actual documents so the chat can show them
-                    foundDocuments = db.getManyDocumentsByIds(nearestDocumentChunkEmbeddings.stream().map(d -> Math.toIntExact(d.getDocument_id())).toList(), hibernateInit);
+
+                    // TODO Why is converting to int necessary here? document_id is long
+                    foundDocuments = db.getManyDocumentsByIds(nearestDocumentChunkEmbeddings.stream().map(d -> d.getDocument_id()).toList(), hibernateInit);
                     StringBuilder contextText = new StringBuilder();
                     contextText.append("The following documents contain information, ordered by relevance.\n\n");
                     int docInd = 0;
@@ -359,7 +365,7 @@ public class RAGApi implements UceApi {
             // TODO we need to make sure, that we cannot accept another message from the user while the streaming is in progress.
             if (stream) {
                 // Start a background thread that will handle the streaming response
-                Runnable backgroundTask = new RAGStreamBackgroundTask(ragService, chatState, nearestDocumentChunkEmbeddings, foundDocuments);
+                Runnable backgroundTask = accessManager.wrap(new RAGStreamBackgroundTask(ragService, chatState, nearestDocumentChunkEmbeddings, foundDocuments));
                 // TODO store active background threads to be able to cancel them if needed
                 var backgroundThread = new Thread(backgroundTask);
                 backgroundThread.start();

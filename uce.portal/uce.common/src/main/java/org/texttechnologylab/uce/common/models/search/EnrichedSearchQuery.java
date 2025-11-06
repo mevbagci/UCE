@@ -173,6 +173,7 @@ public class EnrichedSearchQuery {
         if (command.equals("R::")) {
             // Syntax should be R::lng=5;lat=70;r=1000
             var locationDto = parseLocationRadiusCommand(value);
+
             geoNames = db.getDistinctGeonamesNamesByRadius(locationDto.getLongitude(), locationDto.getLatitude(), locationDto.getRadius(), corpusId, 200);
         } else if (command.equals("LOC::")) {
             // The syntax should be  LOC::<FEATURE_CLASS>.<FEATURE_CODE>, so e.g.: LOC::A.ADMS
@@ -180,6 +181,7 @@ public class EnrichedSearchQuery {
             var featureClass = split[0];
             var featureCode = "";
             if (split.length > 1) featureCode = split[1];
+
             geoNames = db.getDistinctGeonamesNamesByFeatureCode(GeoNameFeatureClass.valueOf(featureClass), featureCode, corpusId, 200);
         }
 
@@ -280,6 +282,7 @@ public class EnrichedSearchQuery {
                                      StringBuilder query,
                                      String delimiter,
                                      String or) throws DatabaseOperationException, IOException {
+
         var taxonIds = db.getIdentifiableTaxonsByValue(cleanedToken.toLowerCase());
         if (taxonIds == null || taxonIds.isEmpty()) {
             return false;

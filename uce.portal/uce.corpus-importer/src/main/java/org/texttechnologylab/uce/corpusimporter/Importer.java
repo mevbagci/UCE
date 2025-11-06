@@ -36,6 +36,7 @@ import org.texttechnologylab.models.authentication.DocumentPermission;
 import org.texttechnologylab.uce.common.config.CommonConfig;
 import org.texttechnologylab.uce.common.config.CorpusConfig;
 import org.texttechnologylab.uce.common.exceptions.DatabaseOperationException;
+import org.texttechnologylab.uce.common.exceptions.DocumentAccessDeniedException;
 import org.texttechnologylab.uce.common.exceptions.ExceptionUtils;
 import org.texttechnologylab.uce.common.models.UIMAAnnotation;
 import org.texttechnologylab.uce.common.models.biofid.BiofidTaxon;
@@ -186,8 +187,12 @@ public class Importer {
 
     /**
      * Stores an uploaded xmi to a given corpus
+     * 
+     * @throws DatabaseOperationException
+     * @throws DocumentAccessDeniedException
+     * 
      */
-    public Long storeUploadedXMIToCorpusAsync(InputStream inputStream, Corpus corpus, String fileName, String documentId) throws DatabaseOperationException {
+    public Long storeUploadedXMIToCorpusAsync(InputStream inputStream, Corpus corpus, String fileName, String documentId) throws DatabaseOperationException, DocumentAccessDeniedException {
         logger.info("Trying to store an uploaded UIMA file...");
 
         // Before we try to parse the document, we need to check if we have UCEMetadata filters for this corpus.
