@@ -55,6 +55,11 @@ public class DocumentAccessManager {
             throws DocumentAccessDeniedException, DatabaseOperationException {
 
         var ctx = current();
+
+        if (DocumentPermission.ADMIN_BYPASS_USERNAME.equals(ctx.principal())) {
+            return; // admin short-circuit
+        }
+
         var cached = ctx.cachedPermission(id);
         if (cached != null && cached.ordinal() >= level.ordinal()) return;
 
@@ -74,6 +79,11 @@ public class DocumentAccessManager {
         if (documentIds.isEmpty()) return;
 
         var ctx = current();
+        
+        if (DocumentPermission.ADMIN_BYPASS_USERNAME.equals(ctx.principal())) {
+            return; // admin short-circuit
+        }
+
         var missing = documentIds.stream()
                 .filter(id -> {
                     var cached = ctx.cachedPermission(id);
