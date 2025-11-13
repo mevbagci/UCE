@@ -13,7 +13,6 @@ import org.hibernate.type.StandardBasicTypes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.texttechnologylab.models.authentication.DocumentPermission;
-import org.texttechnologylab.models.authentication.DocumentPermission.DOCUMENT_PERMISSION_LEVEL;
 import org.texttechnologylab.uce.common.annotations.Searchable;
 import org.texttechnologylab.uce.common.config.HibernateConf;
 import org.texttechnologylab.uce.common.exceptions.DatabaseOperationException;
@@ -41,7 +40,6 @@ import org.texttechnologylab.uce.common.models.topic.TopicValueBase;
 import org.texttechnologylab.uce.common.models.topic.TopicWord;
 import org.texttechnologylab.uce.common.models.topic.UnifiedTopic;
 import org.texttechnologylab.uce.common.models.util.HealthStatus;
-import org.texttechnologylab.uce.common.security.DocumentAccessContext;
 import org.texttechnologylab.uce.common.security.DocumentAccessManager;
 import org.texttechnologylab.uce.common.utils.ReflectionUtils;
 import org.texttechnologylab.uce.common.utils.StringUtils;
@@ -60,7 +58,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
-public class PostgresqlDataInterface_Impl implements DataInterface {
+public final class PostgresqlDataInterface_Impl implements DataInterface {
     private static final Logger logger = LogManager.getLogger(PostgresqlDataInterface_Impl.class);
 
     private final SessionFactory sessionFactory;
@@ -225,10 +223,11 @@ public class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
-    public List executeSqlWithReturn(String sql) throws DatabaseOperationException {
+    public List<?> executeSqlWithReturn(String sql) throws DatabaseOperationException {
         return executeOperationSafely(session -> session.createNativeQuery(sql).getResultList());
     }
 
+    @Override
     public ArrayList<AnnotationSearchResult> getAnnotationsOfCorpus(long corpusId, int skip, int take) throws DatabaseOperationException {
         return executeOperationSafely((session) -> session.doReturningWork((connection) -> {
 
@@ -337,6 +336,7 @@ public class PostgresqlDataInterface_Impl implements DataInterface {
         }));
     }
 
+    @Override
     public List<String> getIdentifiableTaxonsByValue(String token) throws DatabaseOperationException {
         return executeOperationSafely((session) -> {
             String sql = "SELECT DISTINCT biofidurl FROM biofidtaxon WHERE primaryname ILIKE :token LIMIT 100";
@@ -352,6 +352,7 @@ public class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public int countDocumentsInCorpus(long id) throws DatabaseOperationException {
         return executeOperationSafely((session) -> {
             var criteria = session.createCriteria(Document.class);
@@ -372,6 +373,7 @@ public class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public boolean documentExists(long corpusId, String documentId) throws DatabaseOperationException {
         return executeOperationSafely((session) -> {
             var criteriaBuilder = session.getCriteriaBuilder();
@@ -387,6 +389,7 @@ public class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public CorpusTsnePlot getCorpusTsnePlotByCorpusId(long corpusId) throws DatabaseOperationException {
         return executeOperationSafely((session) -> {
             var cb = session.getCriteriaBuilder();
@@ -398,6 +401,7 @@ public class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<UCEMetadataFilter> getUCEMetadataFiltersByCorpusId(long corpusId) throws DatabaseOperationException {
         return executeOperationSafely((session) -> {
             Criteria criteria = session.createCriteria(UCEMetadataFilter.class);

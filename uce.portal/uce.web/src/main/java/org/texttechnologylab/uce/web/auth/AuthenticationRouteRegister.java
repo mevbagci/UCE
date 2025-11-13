@@ -4,12 +4,7 @@ import io.javalin.Javalin;
 import io.javalin.http.Handler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.context.ApplicationContext;
-import org.texttechnologylab.models.authentication.DocumentPermission;
 import org.texttechnologylab.uce.common.annotations.auth.Authentication;
-import org.texttechnologylab.uce.common.models.authentication.UceUser;
-import org.texttechnologylab.uce.common.security.DocumentAccessContext;
-import org.texttechnologylab.uce.common.security.DocumentAccessManager;
 import org.texttechnologylab.uce.web.freeMarker.Renderer;
 import org.texttechnologylab.uce.web.routes.UceApi;
 
