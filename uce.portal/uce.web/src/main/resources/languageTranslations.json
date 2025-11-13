@@ -538,5 +538,9 @@
   "sentenceTopicFlow": {
     "de-DE": "Satz-Themenfluss",
     "en-EN": "Sentence Topic Flow"
+  },
+  "documentAccessDeniedError": {
+    "en-EN": "You are not allowed to view this document.",
+    "de-DE": "Sie haben keine Berechtigung, dieses Dokument zu sehen."
   }
 }
