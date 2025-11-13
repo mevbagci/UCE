@@ -6,6 +6,7 @@ import org.springframework.context.ApplicationContext;
 import org.texttechnologylab.uce.common.config.UceConfig;
 import org.texttechnologylab.uce.common.cronjobs.SystemJob;
 import org.texttechnologylab.uce.common.exceptions.DatabaseOperationException;
+import org.texttechnologylab.uce.common.exceptions.DocumentAccessDeniedException;
 import org.texttechnologylab.uce.common.models.util.HealthStatus;
 import org.texttechnologylab.uce.common.security.DocumentAccessManager;
 import org.texttechnologylab.uce.common.services.PostgresqlDataInterface_Impl;
@@ -57,7 +58,7 @@ public final class SystemStatus {
                             String sqlContent = Files.readString(file);
                             db.executeSqlWithoutReturn(sqlContent);
                             logger.info("*--> Successfully executed: " + file.getFileName());
-                        } catch (IOException | DatabaseOperationException ex) {
+                        } catch (IOException | DatabaseOperationException | DocumentAccessDeniedException ex) {
                             logger.error("Error trying to execute the database script " + file.getFileName(), ex);
                         }
                     });

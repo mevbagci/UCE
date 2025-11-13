@@ -164,8 +164,9 @@ public class Importer {
      * Starts the importing processing of this instance.
      *
      * @throws DatabaseOperationException
+     * @throws DocumentAccessDeniedException 
      */
-    public void start(int numThreads) throws DatabaseOperationException {
+    public void start(int numThreads) throws DatabaseOperationException, DocumentAccessDeniedException {
         logger.info(
                 "\n _   _ _____  _____   _____                           _   \n" +
                         "| | | /  __ \\|  ___| |_   _|                         | |  \n" +
@@ -214,8 +215,9 @@ public class Importer {
 
     /**
      * Imports all UIMA xmi files in a folder
+     * @throws DocumentAccessDeniedException 
      */
-    public void storeCorpusFromFolderAsync(String folderName, int numThreads) throws DatabaseOperationException {
+    public void storeCorpusFromFolderAsync(String folderName, int numThreads) throws DatabaseOperationException, DocumentAccessDeniedException {
         var executor = Executors.newFixedThreadPool(numThreads);
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
@@ -379,8 +381,9 @@ public class Importer {
      * @param corpusConfig
      * @param db
      * @return A {@link Corpus} object if an existing corpus was found otherwise null
+     * @throws DocumentAccessDeniedException 
      */
-    public static Corpus CreateDBCorpus(Corpus corpus, CorpusConfig corpusConfig, PostgresqlDataInterface_Impl db) throws DatabaseOperationException {
+    public static Corpus CreateDBCorpus(Corpus corpus, CorpusConfig corpusConfig, PostgresqlDataInterface_Impl db) throws DatabaseOperationException, DocumentAccessDeniedException {
         corpus.setName(corpusConfig.getName());
         corpus.setLanguage(corpusConfig.getLanguage());
         corpus.setAuthor(corpusConfig.getAuthor());
@@ -784,8 +787,9 @@ public class Importer {
 
     /**
      * Selects and sets the logical links between documents, annotations and more.
+     * @throws DocumentAccessDeniedException 
      */
-    private void setLogicLinks(Document document, JCas jCas, long corpusId, String filePath) throws DatabaseOperationException {
+    private void setLogicLinks(Document document, JCas jCas, long corpusId, String filePath) throws DatabaseOperationException, DocumentAccessDeniedException {
         // Document -> Document Links
         var documentLinks = new ArrayList<DocumentLink>();
         JCasUtil.select(jCas, DLink.class).forEach(l -> {

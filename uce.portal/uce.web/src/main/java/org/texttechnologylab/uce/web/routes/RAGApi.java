@@ -11,6 +11,7 @@ import org.springframework.context.ApplicationContext;
 import org.texttechnologylab.uce.common.annotations.auth.Authentication;
 import org.texttechnologylab.uce.common.backgroundtasks.RAGStreamBackgroundTask;
 import org.texttechnologylab.uce.common.config.CommonConfig;
+import org.texttechnologylab.uce.common.exceptions.DocumentAccessDeniedException;
 import org.texttechnologylab.uce.common.exceptions.ExceptionUtils;
 import org.texttechnologylab.uce.common.models.corpus.Document;
 import org.texttechnologylab.uce.common.models.corpus.Image;
@@ -21,6 +22,7 @@ import org.texttechnologylab.uce.common.services.RAGService;
 import org.texttechnologylab.uce.common.utils.SystemStatus;
 import org.texttechnologylab.uce.web.CustomFreeMarkerEngine;
 import org.texttechnologylab.uce.web.LanguageResources;
+import org.texttechnologylab.uce.web.freeMarker.AccessDeniedRenderer;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -60,6 +62,12 @@ public class RAGApi implements UceApi {
         try {
             var plotAsHtml = db.getCorpusTsnePlotByCorpusId(corpusId).getPlotHtml();
             ctx.result(plotAsHtml == null ? "" : plotAsHtml);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error fetching the tsne plot of corpus: " + corpusId, ex);
             ctx.result("");
@@ -531,6 +539,13 @@ public class RAGApi implements UceApi {
                     .toList();
 
             ctx.json(simplified);
+        
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting sentence embeddings.", ex);
             ctx.status(500);

@@ -6,6 +6,7 @@ import io.javalin.http.Context;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.ApplicationContext;
+import org.texttechnologylab.uce.common.exceptions.DocumentAccessDeniedException;
 import org.texttechnologylab.uce.common.exceptions.ExceptionUtils;
 import org.texttechnologylab.uce.common.models.ModelBase;
 import org.texttechnologylab.uce.common.models.corpus.Document;
@@ -19,6 +20,7 @@ import org.texttechnologylab.uce.search.SearchState;
 import org.texttechnologylab.uce.search.Search_DefaultImpl;
 import org.texttechnologylab.uce.web.LanguageResources;
 import org.texttechnologylab.uce.web.SessionManager;
+import org.texttechnologylab.uce.web.freeMarker.AccessDeniedRenderer;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -55,7 +57,12 @@ public class CorpusUniverseApi implements UceApi {
             var document = db.getDocumentById(documentId);
             model.put("document", document);
 
-        // TODO in case of DocumentAccessDeniedException display a proper message
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error fetching the document for the node inspector with id: " + documentId, ex);
             ctx.render("defaultError.ftl");

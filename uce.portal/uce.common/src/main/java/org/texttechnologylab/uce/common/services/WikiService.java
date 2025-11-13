@@ -26,7 +26,7 @@ public class WikiService {
         this.sparqlService = sparqlService;
     }
 
-    public CorpusWikiPageViewModel buildCorpusWikiPageViewModle(long corpusId, String coveredText) throws DatabaseOperationException {
+    public CorpusWikiPageViewModel buildCorpusWikiPageViewModle(long corpusId, String coveredText) throws DatabaseOperationException, DocumentAccessDeniedException {
         var viewModel = new CorpusWikiPageViewModel();
         var corpus = db.getCorpusById(corpusId);
         viewModel.setWikiModel(corpus);

@@ -19,6 +19,7 @@ import org.texttechnologylab.uce.common.services.S3StorageService;
 import org.texttechnologylab.uce.search.SearchState;
 import org.texttechnologylab.uce.web.LanguageResources;
 import org.texttechnologylab.uce.web.SessionManager;
+import org.texttechnologylab.uce.web.freeMarker.AccessDeniedRenderer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,6 +61,12 @@ public class DocumentApi implements UceApi {
                 }
             });
             model.put("uceMetadata", uceMetadata);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting the uce metadata of a document.", ex);
             ctx.render("defaultError.ftl");
@@ -84,8 +91,6 @@ public class DocumentApi implements UceApi {
                 (ex) -> logger.error("Error: couldn't determine the page, defaulting to page 1 then. ", ex));
         if (page == null) page = 1;
 
-        UceUser uceUser = ctx.sessionAttribute("uceUser");
-
         try {
             var take = 10;
             var documents = db.getDocumentsByCorpusId(corpusId, (page - 1) * take, take);
@@ -93,6 +98,13 @@ public class DocumentApi implements UceApi {
             model.put("requestId", ctx.attribute("id"));
             model.put("documents", documents);
             model.put("corpusId", corpusId);
+        
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting the documents list of a corpus.", ex);
             ctx.render("defaultError.ftl");
@@ -108,6 +120,7 @@ public class DocumentApi implements UceApi {
     }
 
     public void getCorpusInspectorView(Context ctx) {
+
         var model = new HashMap<String, Object>();
 
         var corpusId = ExceptionUtils.tryCatchLog(() -> Long.parseLong(ctx.queryParam("id")),
@@ -128,6 +141,12 @@ public class DocumentApi implements UceApi {
             model.put("documentsCount", documentsCount);
             model.put("pagesCount", pagesCount);
 
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting the corpus inspector view.", ex);
             ctx.render("defaultError.ftl");
@@ -138,6 +157,7 @@ public class DocumentApi implements UceApi {
     }
 
     public void get3dGlobe(Context ctx) {
+
         var model = new HashMap<String, Object>();
 
         var id = ExceptionUtils.tryCatchLog(() -> Long.parseLong(ctx.queryParam("id")),
@@ -158,6 +178,12 @@ public class DocumentApi implements UceApi {
             model.put("document", document);
             model.put("data", data);
             model.put("jsonData", dataJson);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting the 3D globe of a document, returning default error view.", ex);
             ctx.render("defaultError.ftl");
@@ -168,6 +194,7 @@ public class DocumentApi implements UceApi {
     }
 
     public void getSingleDocumentReadView(Context ctx) {
+
         var model = new HashMap<String, Object>();
 
         var id = ExceptionUtils.tryCatchLog(() -> ctx.queryParam("id"),
@@ -183,7 +210,6 @@ public class DocumentApi implements UceApi {
                 (ex) -> logger.warn("Opening a document view but no searchId parameter was provided. Currently, this shouldn't happen, but it didn't stop the procedure."));
 
         try {
-            UceUser user = ctx.sessionAttribute("uceUser");
 
             var doc = db.getCompleteDocumentById(Long.parseLong(id), 0, 10);
             model.put("document", doc);
@@ -203,6 +229,12 @@ public class DocumentApi implements UceApi {
                         model.put("searchTokens", String.join("[TOKEN]", activeSearchState.getSearchTokens()));
                 }
             }
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error creating the document reader view for document with id: " + id, ex);
             ctx.render("defaultError.ftl");
@@ -213,9 +245,10 @@ public class DocumentApi implements UceApi {
     };
 
     /**
-     * Finds all document ids matching a metadata key, value and value type.
-     */
+    * Finds all document ids matching a metadata key, value and value type.
+    */
     public void findDocumentIdsByMetadata(Context ctx) {
+
         var key = ExceptionUtils.tryCatchLog(() -> ctx.queryParam("key"),
                 (ex) -> logger.error("Error: document deletion requires a 'key' query parameter. ", ex));
         var value = ExceptionUtils.tryCatchLog(() -> ctx.queryParam("value"),
@@ -235,8 +268,13 @@ public class DocumentApi implements UceApi {
             Map<String, Object> result = new HashMap<>();
             result.put("document_ids", documentIds);
             ctx.json(result);
-        }
-        catch (Exception ex) {
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
+        } catch (Exception ex) {
             logger.error(ex);
             ctx.status(500);
             ctx.render("defaultError.ftl");
@@ -245,8 +283,9 @@ public class DocumentApi implements UceApi {
 
     /**
      * Finds the first document id matching a metadata key, value and value type.
-     */
-    public void findDocumentIdByMetadata(Context ctx) {
+    */
+    public void findDocumentIdByMetadata(Context ctx){
+
         var key = ExceptionUtils.tryCatchLog(() -> ctx.queryParam("key"),
                 (ex) -> logger.error("Error: document deletion requires a 'key' query parameter. ", ex));
         var value = ExceptionUtils.tryCatchLog(() -> ctx.queryParam("value"),
@@ -267,15 +306,21 @@ public class DocumentApi implements UceApi {
             Map<String, Object> result = new HashMap<>();
             result.put("document_id", documentId);
             ctx.json(result);
-        }
-        catch (Exception ex) {
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
+        } catch (Exception ex) {
             logger.error(ex);
             ctx.status(500);
             ctx.render("defaultError.ftl");
         }
     }
 
-    public void deleteDocument(Context ctx) throws DatabaseOperationException, NumberFormatException, DocumentAccessDeniedException {
+    public void deleteDocument(Context ctx) throws DatabaseOperationException, NumberFormatException {
+        
         var id = ExceptionUtils.tryCatchLog(() -> ctx.queryParam("id"),
                 (ex) -> logger.error("Error: document deletion requires an 'id' query parameter. ", ex));
         if (id == null) {
@@ -283,7 +328,15 @@ public class DocumentApi implements UceApi {
             return;
         }
 
-        db.deleteDocumentById(Long.parseLong(id));
+        try {
+            db.deleteDocumentById(Long.parseLong(id));
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
+        } 
 
         Map<String, Object> result = new HashMap<>();
         result.put("status", "success");
@@ -304,13 +357,18 @@ public class DocumentApi implements UceApi {
         }
 
         try {
-            UceUser user = ctx.sessionAttribute("uceUser");
             var skip = Integer.parseInt(ctx.queryParam("skip"));
             var doc = db.getCompleteDocumentById(Long.parseLong(id), skip, 10);
             var annotations = doc.getAllAnnotations(skip, 10);
             model.put("documentAnnotations", annotations);
             model.put("documentText", doc.getFullText());
             model.put("documentPages", doc.getPages(10, skip));
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting the pages list view - either the document couldn't be fetched (id=" + id + ") or its annotations.", ex);
             ctx.render("defaultError.ftl");
@@ -321,6 +379,7 @@ public class DocumentApi implements UceApi {
     }
 
     public void getDocumentTopics(Context ctx) {
+
         var documentId = ExceptionUtils.tryCatchLog(() -> Long.parseLong(ctx.queryParam("documentId")),
                 (ex) -> logger.error("Error: couldn't determine the documentId for topics. ", ex));
 
@@ -344,6 +403,12 @@ public class DocumentApi implements UceApi {
             }
 
             ctx.json(result);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting document topics.", ex);
             ctx.status(500);
@@ -352,6 +417,7 @@ public class DocumentApi implements UceApi {
     }
 
     public void getTaxonCountByPage(Context ctx) {
+
         var documentId = ctx.queryParam("documentId");
 
         if (documentId == null || documentId.isEmpty()) {
@@ -375,6 +441,12 @@ public class DocumentApi implements UceApi {
             }
 
             ctx.json(result);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting taxon counts.", ex);
             ctx.status(500);
@@ -389,6 +461,7 @@ public class DocumentApi implements UceApi {
         if (documentId == null) {
             ctx.status(400);
             ctx.render("defaultError.ftl", Map.of("information", "Missing documentId parameter"));
+            return;
         }
 
         try {
@@ -403,6 +476,12 @@ public class DocumentApi implements UceApi {
             }
 
             ctx.json(result);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting document topics.", ex);
             ctx.status(500);
@@ -433,6 +512,12 @@ public class DocumentApi implements UceApi {
             }
 
             ctx.json(result);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting document entities.", ex);
             ctx.status(500);
@@ -463,6 +548,12 @@ public class DocumentApi implements UceApi {
             }
 
             ctx.json(result);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting document lemma.", ex);
             ctx.status(500);
@@ -492,6 +583,12 @@ public class DocumentApi implements UceApi {
             }
 
             ctx.json(result);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting document geoname.", ex);
             ctx.status(500);
@@ -522,6 +619,12 @@ public class DocumentApi implements UceApi {
             }
 
             ctx.json(result);
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting sentence topics with entities.", ex);
             ctx.status(500);
@@ -564,6 +667,12 @@ public class DocumentApi implements UceApi {
 
             ctx.json(result);
 
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error getting topic words by document ID.", ex);
             ctx.status(500);
@@ -594,6 +703,12 @@ public class DocumentApi implements UceApi {
 
             ctx.json(result);
 
+        } catch (DocumentAccessDeniedException dade) {
+            AccessDeniedRenderer.render(
+                    ctx,
+                    dade,
+                    logger);
+            return;
         } catch (Exception ex) {
             logger.error("Error retrieving unified topic to sentence mapping.", ex);
             ctx.status(500);

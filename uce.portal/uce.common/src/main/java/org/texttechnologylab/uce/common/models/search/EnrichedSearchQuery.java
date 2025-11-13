@@ -3,6 +3,7 @@ package org.texttechnologylab.uce.common.models.search;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.texttechnologylab.uce.common.exceptions.DatabaseOperationException;
+import org.texttechnologylab.uce.common.exceptions.DocumentAccessDeniedException;
 import org.texttechnologylab.uce.common.models.corpus.GeoNameFeatureClass;
 import org.texttechnologylab.uce.common.models.dto.map.LocationDto;
 import org.texttechnologylab.uce.common.models.viewModels.CorpusViewModel;
@@ -73,7 +74,7 @@ public class EnrichedSearchQuery {
         this.db = db;
     }
 
-    public EnrichedSearchQuery parse(boolean proModeEnabled, long corpusId) throws DatabaseOperationException, IOException {
+    public EnrichedSearchQuery parse(boolean proModeEnabled, long corpusId) throws DatabaseOperationException, IOException, DocumentAccessDeniedException {
         var corpusVm = db.getCorpusById(corpusId).getViewModel();
         var searchQuery = StringUtils.replaceSpacesInQuotes(this.originalQuery);
         var tokens = searchQuery.split(" ");
@@ -158,7 +159,7 @@ public class EnrichedSearchQuery {
                                           StringBuilder query,
                                           String delimiter,
                                           String or,
-                                          long corpusId) throws DatabaseOperationException {
+                                          long corpusId) throws DatabaseOperationException, DocumentAccessDeniedException {
         enrichedToken.setType(EnrichedSearchTokenType.LOCATION_COMMAND);
         var command = "";
         for (var c : LOCATION_COMMANDS) {
@@ -208,7 +209,7 @@ public class EnrichedSearchQuery {
             String delimiter,
             String or,
             long corpusId
-    ) throws DatabaseOperationException {
+    ) throws DatabaseOperationException, DocumentAccessDeniedException {
         enrichedToken.setType(EnrichedSearchTokenType.TIME_COMMAND);
 
         var command = token.substring(0, 3);
@@ -281,7 +282,7 @@ public class EnrichedSearchQuery {
                                      EnrichedSearchToken enrichedToken,
                                      StringBuilder query,
                                      String delimiter,
-                                     String or) throws DatabaseOperationException, IOException {
+                                     String or) throws DatabaseOperationException, IOException, DocumentAccessDeniedException {
 
         var taxonIds = db.getIdentifiableTaxonsByValue(cleanedToken.toLowerCase());
         if (taxonIds == null || taxonIds.isEmpty()) {
