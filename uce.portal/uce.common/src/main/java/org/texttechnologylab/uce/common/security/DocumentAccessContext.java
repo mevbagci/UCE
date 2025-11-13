@@ -1,11 +1,10 @@
 package org.texttechnologylab.uce.common.security;
 
-import org.texttechnologylab.models.authentication.DocumentPermission;
-
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.Map;
+
+import org.texttechnologylab.models.authentication.DocumentPermission;
 
 /**
  * Immutable access snapshot for the current principal.
@@ -13,25 +12,16 @@ import java.util.Map;
 public final class DocumentAccessContext {
 
     private final String principal;
-    private final Map<DocumentPermission.DOCUMENT_PERMISSION_LEVEL, Integer> levelOrdinals =
-            new EnumMap<>(DocumentPermission.DOCUMENT_PERMISSION_LEVEL.class);
 
     private final Map<Long, DocumentPermission.DOCUMENT_PERMISSION_LEVEL> cachedPermissions =
             Collections.synchronizedMap(new java.util.HashMap<>());
 
     public DocumentAccessContext(String principal) {
         this.principal = principal;
-        for (var level : DocumentPermission.DOCUMENT_PERMISSION_LEVEL.values()) {
-            levelOrdinals.put(level, level.ordinal());
-        }
     }
 
     public String principal() {
         return principal;
-    }
-
-    public int toOrdinal(DocumentPermission.DOCUMENT_PERMISSION_LEVEL level) {
-        return levelOrdinals.get(level);
     }
 
     public void cachePermission(long documentId, DocumentPermission.DOCUMENT_PERMISSION_LEVEL level) {

@@ -41,7 +41,14 @@ public class DocumentAccessManager {
 
         var ctx = current.get();
         if (ctx == null) {
-            throw new IllegalStateException("DocumentAccessContext is not set for thread " + Thread.currentThread().getName());
+            throw new IllegalStateException("""
+                    DocumentAccessContext is not set for thread %s while authentication is enabled. This happens when a code path bypasses DocumentAccessManager.as(...).
+                    Common causes:
+                    - HTTP handler not running inside the Javalin before/after guard in App.initSparkRoutes
+                    - Background thread, CompletableFuture, or scheduler started without accessManager.wrap(...)/wrapAdmin(...) or an explicit try-with-resources guard
+                    - CLI tool, test, or other out-of-band code invoking services without first calling accessManager.asAdmin()
+                    Consult the authentication/authorization documentation for integration guidance.
+                    """.formatted(Thread.currentThread().getName()));
         }
         return ctx;
     }
