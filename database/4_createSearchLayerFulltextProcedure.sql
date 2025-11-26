@@ -233,7 +233,21 @@ BEGIN
     ', additional_join_1, ts_function, additional_join_2, ts_function, order_by_clause);
 
     EXECUTE query
-    USING uce_metadata_filters, corpus_id, useTsVector, input2, uce_metadata_filters, take_count, offset_count, count_all
+    USING 
+        uce_metadata_filters,  -- $1  : uce_metadata_filters
+        corpus_id,             -- $2  : corpus_id
+        NULL,                  -- $3  : placeholder (not used in query)
+        input2,                -- $4  : input2 / search string
+        uce_metadata_filters,  -- $5  : uce_metadata_filters (for filter checks)
+        take_count,            -- $6  : limit
+        offset_count,          -- $7  : offset
+        count_all,             -- $8  : return counts?
+        NULL,                  -- $9  : placeholder (not used in query)
+        NULL,                  -- $10 : placeholder (not used in query)
+        NULL,                  -- $11 : placeholder (not used in query)
+        NULL,                  -- $12 : placeholder (not used in query)
+        p_user_name,           -- $13 : principal for permitted_documents
+        p_min_level            -- $14 : min permission level
     INTO total_count_temp, document_ids_temp, document_ranks_temp, named_entities_temp, time_temp, taxons_temp, snippets_temp;
 
     total_count_out := total_count_temp;
