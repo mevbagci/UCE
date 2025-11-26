@@ -35,6 +35,10 @@ public class DocumentAccessManager {
     }
 
     public DocumentAccessContext current() {
+        if (SystemStatus.UceConfig == null) {
+            return adminAccessContext;
+        }
+
         if (!SystemStatus.UceConfig.getSettings().getAuthentication().isActivated()) {
             return adminAccessContext;
         }
