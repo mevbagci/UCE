@@ -25,6 +25,9 @@ public class DocumentPermission extends ModelBase {
     // Cross-reference database/14_createPermittedDocumentsFunction.sql
     public static final String ADMIN_BYPASS_USERNAME = "__admin__";
 
+    // Special username representing public (not logged in) users.
+    public static final String PUBLIC_USERNAME = "__public__";
+
     /**
      * This class holds the permissions a user has on a single document.
      * We utilize Keycloak to perform authentication, on login we receive the user info and his group memberships.

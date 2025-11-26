@@ -395,9 +395,11 @@ public class App {
                             RequestContextHolder.setAuthenticatedUceUser(user);
 
                             UceUser uceUser = user;
-                            String principal = (uceUser != null && uceUser.getUsername() != null && !uceUser.getUsername().isBlank())
-                                    ? uceUser.getUsername()
-                                    : DocumentPermission.ADMIN_BYPASS_USERNAME;
+                            String principal = (uceUser != null 
+                                                && uceUser.getUsername() != null 
+                                                && !uceUser.getUsername().isBlank())
+                                                ? uceUser.getUsername()
+                                                : DocumentPermission.PUBLIC_USERNAME;
 
                             var accessContext = contextFactory.getObject(principal);
                             var guard = accessManager.as(accessContext);

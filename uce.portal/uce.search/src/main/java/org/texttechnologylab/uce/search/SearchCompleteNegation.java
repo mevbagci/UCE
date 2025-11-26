@@ -154,7 +154,7 @@ public class SearchCompleteNegation implements Search {
         searchState.setFoundEvents(documentSearchResult.getFoundEvents());
 
         // Add user name for authentication
-        searchState.setSessionUser(user != null ? user.getUsername() : DocumentPermission.ADMIN_BYPASS_USERNAME);
+        searchState.setSessionUser(user != null ? user.getUsername() : DocumentPermission.PUBLIC_USERNAME);
 
         ArrayList<String> allSearchTokens = new ArrayList<>();
         allSearchTokens.addAll(searchState.getCue());

@@ -139,7 +139,7 @@ public class Search_DefaultImpl implements Search {
         searchState.setFoundTimes(documentSearchResult.getFoundTimes());
 
         // Add user name for authentication
-        searchState.setSessionUser(user != null ? user.getUsername() : DocumentPermission.ADMIN_BYPASS_USERNAME);
+        searchState.setSessionUser(user != null ? user.getUsername() : DocumentPermission.PUBLIC_USERNAME);
 
         // Execute embedding search if desired.
         // This search is lose coupled from the rest and only done once in the initiation.
