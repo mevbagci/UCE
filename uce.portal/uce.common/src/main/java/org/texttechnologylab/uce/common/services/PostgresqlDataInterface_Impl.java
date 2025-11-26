@@ -8,10 +8,12 @@ import org.apache.logging.log4j.Logger;
 import org.hibernate.*;
 import org.hibernate.criterion.Projections;
 import org.hibernate.criterion.Restrictions;
+import org.hibernate.query.NativeQuery;
 import org.hibernate.type.LongType;
 import org.hibernate.type.StandardBasicTypes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.context.annotation.Lazy;
 import org.texttechnologylab.models.authentication.DocumentPermission;
 import org.texttechnologylab.uce.common.annotations.Searchable;
 import org.texttechnologylab.uce.common.config.HibernateConf;
@@ -54,8 +56,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 public final class PostgresqlDataInterface_Impl implements DataInterface {
@@ -64,15 +66,12 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
     private final SessionFactory sessionFactory;
 
     @Autowired
+    @Lazy
     private DocumentAccessManager accessManager;
 
     private final Gson gson = new GsonBuilder()
             .registerTypeAdapter(UCEMetadataValueType.class, new UCEMetadataValueTypeOrdinalAdapter())
             .create();
-
-    private Session getCurrentSession() {
-        return sessionFactory.openSession();
-    }
 
     public PostgresqlDataInterface_Impl() {
         sessionFactory = HibernateConf.buildSessionFactory();
@@ -167,50 +166,72 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
     }
 
 
-    public void calculateEffectivePermissions(String username, Set<String> groups) throws DatabaseOperationException, DocumentAccessDeniedException {
-        executeOperationSafely(session -> {
-            // Build a Postgres array literal from the groups set
-            // Escape single quotes to prevent SQL injection
-            String groupArrayLiteral = groups.stream()
-                    .map(s -> "'" + s.replace("'", "''") + "'")
-                    .collect(Collectors.joining(", "));
+    public void calculateEffectivePermissions(String username, Set<String> groups)
+            throws DatabaseOperationException, DocumentAccessDeniedException {
 
-            // If the set is empty, just use ARRAY[]::text[]
-            if (groupArrayLiteral.isEmpty()) {
-                groupArrayLiteral = ""; // Postgres accepts ARRAY[]::text[] as empty
+        executeOperationSafely(session -> {
+            logger.info("calculateEffectivePermissions invoked for username={} with groups size={} groups={}",
+                    username, groups == null ? 0 : groups.size(), groups);
+
+            boolean hasGroups = groups != null && !groups.isEmpty();
+
+            StringBuilder sqlBuilder = new StringBuilder("""
+                WITH all_permissions AS (
+                    SELECT dp.document_id, dp.level
+                    FROM documentpermissions dp
+                    WHERE dp.type = 1
+                    AND dp.name = :username
+            """);
+
+            if (hasGroups) {
+                String groupParams = IntStream.range(0, groups.size())
+                        .mapToObj(i -> ":group" + i)
+                        .collect(Collectors.joining(", "));
+
+                sqlBuilder.append("""
+                    UNION ALL
+                    SELECT dp.document_id, dp.level
+                    FROM documentpermissions dp
+                    WHERE dp.type = 0
+                    AND dp.name IN (""")
+                        .append(groupParams)
+                        .append(")\n");
             }
 
-            String sql = String.format("""
-            WITH all_permissions AS (
-                SELECT dp.document_id, dp.level
-                FROM documentpermissions dp
-                WHERE dp.type = 1
-                  AND dp.name = :username
-                UNION ALL
-                SELECT dp.document_id, dp.level
-                FROM documentpermissions dp
-                WHERE dp.type = 0
-                  AND dp.name = ANY(ARRAY[%s])
-            ),
-            ranked AS (
-                SELECT document_id, MAX(level) AS max_level
-                FROM all_permissions
-                GROUP BY document_id
-            )
-            INSERT INTO documentpermissions (document_id, name, type, level)
-            SELECT r.document_id, :username, 2, r.max_level
-            FROM ranked r
-            ON CONFLICT (document_id, name, type)
-            DO UPDATE SET level = EXCLUDED.level;
-            """, groupArrayLiteral);
+            sqlBuilder.append("""
+                ),
+                ranked AS (
+                    SELECT document_id, MAX(level) AS max_level
+                    FROM all_permissions
+                    GROUP BY document_id
+                )
+                INSERT INTO documentpermissions (document_id, name, type, level, createdat, updatedat, grantedby, updatedby)
+                SELECT r.document_id, :username, 2, r.max_level, now(), now(), :username, :username
+                FROM ranked r
+                ON CONFLICT (document_id, name, type)
+                DO UPDATE SET level = EXCLUDED.level,
+                            updatedat = now(),
+                            updatedby = :username
+            """); // kein ";" nötig
 
-            var query = session.createNativeQuery(sql);
+            String sql = sqlBuilder.toString();
+
+            NativeQuery<?> query = session.createNativeQuery(sql);
             query.setParameter("username", username);
 
-            query.executeUpdate();
+            if (hasGroups) {
+                int i = 0;
+                for (String g : groups) {
+                    query.setParameter("group" + i++, g);
+                }
+            }
+
+            int updated = query.executeUpdate();
+            logger.info("calculateEffectivePermissions finished for username={} rows_affected={}", username, updated);
             return null;
         });
     }
+
 
     public void executeSqlWithoutReturn(String sql) throws DatabaseOperationException, DocumentAccessDeniedException {
         executeOperationSafely(session -> {
@@ -410,6 +431,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<UCEMetadata> getUCEMetadataByDocumentId(long documentId) throws DatabaseOperationException, DocumentAccessDeniedException {
 
         accessManager.checkAccess(documentId, DocumentPermission.DOCUMENT_PERMISSION_LEVEL.READ);
@@ -426,6 +448,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<Document> getDocumentsByCorpusId(long corpusId, int skip, int take) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             // Hardcoded sql, but another instance where hibernate is fucking unusable. This SQL in HQL or whatever
@@ -483,6 +506,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<DocumentLink> getManyDocumentLinksOfDocument(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var criteria = session.createCriteria(DocumentLink.class);
@@ -494,6 +518,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<DocumentLink> getManyDocumentLinksByDocumentId(String documentId, long corpusId) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var criteria = session.createCriteria(DocumentLink.class);
@@ -506,6 +531,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<Document> getNonePostprocessedDocumentsByCorpusId(long corpusId) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var criteria = session.createCriteria(Document.class);
@@ -580,12 +606,14 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         }));
     }
 
+    @Override
     public Corpus getCorpusById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             return session.get(Corpus.class, id);
         });
     }
 
+    @Override
     public Corpus getCorpusByName(String name) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var criteriaBuilder = session.getCriteriaBuilder();
@@ -597,6 +625,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<Corpus> getAllCorpora() throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var criteriaQuery = session.getCriteriaBuilder().createQuery(Corpus.class);
@@ -609,6 +638,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<GlobeTaxon> getGlobeDataForDocument(long documentId) throws DatabaseOperationException, DocumentAccessDeniedException {
 
         accessManager.checkAccess(documentId, DocumentPermission.DOCUMENT_PERMISSION_LEVEL.READ);
@@ -714,6 +744,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         }
     }
 
+    @Override
     public List<Document> getManyDocumentsByIds(List<Long> documentIds) throws DatabaseOperationException, DocumentAccessDeniedException {
         return getManyDocumentsByIds(documentIds, null);
     }
@@ -752,6 +783,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<LexiconEntry> getManyLexiconEntries(int skip, int take, List<String> alphabet,
                                                     List<String> annotationFilters, String sortColumn,
                                                     String sortOrder, String searchInput)
@@ -896,8 +928,10 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
                     var documentIds = new ArrayList<Long>();
                     var documentIdsResult = result.getArray("document_ids");
                     if (documentIdsResult != null) {
-                        var ids = (Long[]) documentIdsResult.getArray();
-                        documentIds.addAll(Arrays.asList(ids));
+                        var ids = (Integer[]) documentIdsResult.getArray();
+                        for (Integer id : ids) {
+                            documentIds.add(id.longValue());
+                        }
                     }
                     search = new DocumentSearchResult(documentCount, documentIds);
                     // Also parse the found entities and all outputs the query returns.
@@ -945,7 +979,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
             annoMap.put("scope", scopesByDocID);
             annoMap.put("xscope", xscopesByDocID);
 
-            TreeMap<String, Boolean> skipMap = new TreeMap<String, Boolean>();
+            TreeMap<String, Boolean> skipMap = new TreeMap<>();
             skipMap.put("cue", false);
             skipMap.put("event", false);
             skipMap.put("focus", false);
@@ -1191,6 +1225,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         }));
     }
 
+    @Override
     public DocumentSearchResult defaultSearchForDocuments(int skip,
                                                           int take,
                                                           String ogSearchQuery,
@@ -1242,8 +1277,12 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
                     var documentIds = new ArrayList<Long>();
                     var documentIdsResult = result.getArray("document_ids");
                     if (documentIdsResult != null) {
-                        var ids = (Long[]) documentIdsResult.getArray();
-                        documentIds.addAll(Arrays.asList(ids));
+                        var ids = (Object[]) documentIdsResult.getArray();
+                        for (Object id : ids) {
+                            if (id != null) {
+                                documentIds.add(((Number) id).longValue());
+                            }
+                        }
                     }
                     search = new DocumentSearchResult(documentCount, documentIds);
                     // Also parse the found entities and all outputs the query returns.
@@ -1289,6 +1328,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         }));
     }
 
+    @Override
     public List<Document> getDocumentsByAnnotationCoveredText(String coveredText, int limit, String annotationName) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var criteriaBuilder = session.getCriteriaBuilder();
@@ -1316,6 +1356,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<Lemma> getLemmasWithinBeginAndEndOfDocument(int begin, int end, long documentId) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var cb = session.getCriteriaBuilder();
@@ -1338,6 +1379,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<Lemma> getLemmasByValue(String covered, int limit, long documentId) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var cb = session.getCriteriaBuilder();
@@ -1363,6 +1405,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public UCEImport getUceImportByImportId(String importId) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var criteria = session.createCriteria(UCEImport.class);
@@ -1371,6 +1414,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public Document getDocumentById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return getDocumentById(id, null);
     }
@@ -1467,6 +1511,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public Page getPageById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var page = session.get(Page.class, id);
@@ -1475,6 +1520,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public Page getPageByDocumentIdAndBeginEnd(long documentId, int begin, int end, boolean initialize) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely(session -> {
             var builder = session.getCriteriaBuilder();
@@ -1495,6 +1541,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public Document getDocumentByCorpusAndDocumentId(long corpusId, String documentId) throws DatabaseOperationException, NumberFormatException, DocumentAccessDeniedException {
         
         accessManager.checkAccess(Long.parseLong(documentId), DocumentPermission.DOCUMENT_PERMISSION_LEVEL.READ);
@@ -1589,6 +1636,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public List<GbifOccurrence> getGbifOccurrencesByGbifTaxonId(long gbifTaxonId) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var criteriaBuilder = session.getCriteriaBuilder();
@@ -1607,6 +1655,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public long countLexiconEntries() throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var builder = session.getCriteriaBuilder();
@@ -1617,10 +1666,12 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public LexiconEntry getLexiconEntryId(LexiconEntryId id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> session.get(LexiconEntry.class, id));
     }
 
+    @Override
     public NamedEntity getNamedEntityById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var entity = session.get(NamedEntity.class, id);
@@ -1629,6 +1680,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public GazetteerTaxon getGazetteerTaxonById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var taxon = session.get(GazetteerTaxon.class, id);
@@ -1637,6 +1689,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public GnFinderTaxon getGnFinderTaxonById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var taxon = session.get(GnFinderTaxon.class, id);
@@ -1645,6 +1698,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public BiofidTaxon getBiofidTaxonById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var taxon = session.get(BiofidTaxon.class, id);
@@ -1653,6 +1707,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public GeoName getGeoNameAnnotationById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var geo = session.get(GeoName.class, id);
@@ -1661,6 +1716,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public Time getTimeAnnotationById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var time = session.get(Time.class, id);
@@ -1669,6 +1725,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public Sentence getSentenceAnnotationById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var sentence = session.get(Sentence.class, id);
@@ -1677,6 +1734,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public Lemma getLemmaById(long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var lemma = session.get(Lemma.class, id);
@@ -1733,6 +1791,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public <T extends KeywordDistribution> List<T> getKeywordDistributionsByString(Class<T> clazz, String topic, int limit) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var builder = session.getCriteriaBuilder();
@@ -1783,6 +1842,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public <T extends KeywordDistribution> T getKeywordDistributionById(Class<T> clazz, long id) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var dist = session.get(clazz, id);
@@ -1794,6 +1854,7 @@ public final class PostgresqlDataInterface_Impl implements DataInterface {
         });
     }
 
+    @Override
     public boolean checkIfGbifOccurrencesExist(long gbifTaxonId) throws DatabaseOperationException, DocumentAccessDeniedException {
         return executeOperationSafely((session) -> {
             var builder = session.getCriteriaBuilder();
