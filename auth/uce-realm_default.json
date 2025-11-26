@@ -893,16 +893,16 @@
       "clientId": "uce-web",
       "name": "UCE Web Portal Client",
       "description": "This is the client of the UCE webportal to manage logins, users and all associated auth operations within the UCE webportal.",
-      "rootUrl": "http://localhost:8008",
+      "rootUrl": "http://localhost:4567",
       "adminUrl": "",
-      "baseUrl": "http://localhost:8008",
+      "baseUrl": "http://localhost:4567",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "secret": "**********",
       "redirectUris": [
-        "http://localhost:8008/auth/*"
+        "http://localhost:4567/auth/*"
       ],
       "webOrigins": [
         "*"
@@ -926,7 +926,7 @@
         "standard.token.exchange.enabled": "false",
         "login_theme": "keycloak.v2",
         "frontchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "http://localhost:8008/auth/*",
+        "post.logout.redirect.uris": "http://localhost:4567/auth/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false",
         "use.refresh.tokens": "true",
