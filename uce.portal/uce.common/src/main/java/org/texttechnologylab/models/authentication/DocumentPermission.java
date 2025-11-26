@@ -82,12 +82,12 @@ public class DocumentPermission extends ModelBase {
     @Setter
     @Getter
     @Column(nullable = false)
-    private Instant updatedAt;
+    private Instant updatedAt = Instant.now();
 
     @Setter
     @Getter
     @Column(nullable = false, updatable = false)
-    private String grantedBy;
+    private String grantedBy = ADMIN_BYPASS_USERNAME;
 
     @Setter
     @Getter
