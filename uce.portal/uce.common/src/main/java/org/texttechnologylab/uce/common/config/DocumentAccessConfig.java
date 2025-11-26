@@ -1,5 +1,7 @@
 package org.texttechnologylab.uce.common.config;
 
+import java.util.EnumSet;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
@@ -12,8 +14,9 @@ public class DocumentAccessConfig {
 
     @Bean
     @Scope("prototype")
-    public DocumentAccessContext documentAccessContext(String principal) {
-        return new DocumentAccessContext(principal);
+    public DocumentAccessContext documentAccessContext(String principal, EnumSet<DocumentAccessContext.Role> roles) {
+        return new DocumentAccessContext(principal, roles != null ?
+                roles : java.util.EnumSet.noneOf(DocumentAccessContext.Role.class));
     }
 
     @Bean

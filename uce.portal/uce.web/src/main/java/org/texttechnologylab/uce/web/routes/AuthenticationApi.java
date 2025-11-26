@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.context.ApplicationContext;
 import org.texttechnologylab.uce.common.config.CommonConfig;
 import org.texttechnologylab.uce.common.models.authentication.UceUser;
+import org.texttechnologylab.uce.common.security.DocumentAccessContext;
 import org.texttechnologylab.uce.common.services.AuthenticationService;
 import org.texttechnologylab.uce.common.services.PostgresqlDataInterface_Impl;
 import org.texttechnologylab.uce.common.utils.AuthenticationUtils;
@@ -109,11 +110,19 @@ public class AuthenticationApi implements UceApi {
                 user.setName(parsedIdToken.get("name").toString().replace("\"", ""));
                 user.setEmail(parsedIdToken.get("email").toString().replace("\"", ""));
                 user.setUsername(parsedIdToken.get("preferred_username").toString().replace("\"", ""));
+                user.setRoles(java.util.EnumSet.noneOf(DocumentAccessContext.Role.class));
                 var groupsFromIdToken = extractGroups(parsedIdToken);
                 if (!groupsFromIdToken.isEmpty()) {
                     user.setGroups(groupsFromIdToken);
+                    
+                    // TODO Implement more fine-grained role assignment 
+                    if (groupsFromIdToken.contains("uce-admin")) {
+                        user.getRoles().add(DocumentAccessContext.Role.ADMIN);
+                    }
                 }
+
                 logger.info("Parsed ID token for user={} with groups from ID token size={}", user.getUsername(), groupsFromIdToken.size());
+                logger.info("User roles assigned: {}", user.getRoles());
             }
 
             var refreshToken = tokenResponse.has("refresh_token") ? tokenResponse.get("refresh_token").getAsString().replace("\"", "") : null;
@@ -136,6 +145,12 @@ public class AuthenticationApi implements UceApi {
             if (user.getGroups() == null) {
                 user.setGroups(java.util.Collections.emptySet());
                 logger.info("No groups found in either token; using empty group set");
+            }
+
+            // Ensure roles is non-null
+            if (user.getRoles() == null) {
+                user.setRoles(java.util.EnumSet.noneOf(DocumentAccessContext.Role.class));
+                logger.info("No roles assigned; using empty role set");
             }
 
             ctx.sessionAttribute("uceUser", user);

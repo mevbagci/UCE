@@ -7,6 +7,7 @@ import org.texttechnologylab.uce.common.services.PostgresqlDataInterface_Impl;
 import org.texttechnologylab.uce.common.utils.SystemStatus;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.concurrent.CompletableFuture;
 
 public class DocumentAccessManager {
@@ -15,7 +16,8 @@ public class DocumentAccessManager {
 
     private final ThreadLocal<DocumentAccessContext> current = new ThreadLocal<>();
     private final PostgresqlDataInterface_Impl db;
-    private static final DocumentAccessContext adminAccessContext = new DocumentAccessContext(ADMIN_USERNAME);
+    private static final DocumentAccessContext adminAccessContext = 
+            new DocumentAccessContext(ADMIN_USERNAME, EnumSet.of(DocumentAccessContext.Role.ADMIN));
 
     public DocumentAccessManager(PostgresqlDataInterface_Impl db) {
         this.db = db;
@@ -67,7 +69,7 @@ public class DocumentAccessManager {
 
         var ctx = current();
 
-        if (DocumentPermission.ADMIN_BYPASS_USERNAME.equals(ctx.principal())) {
+        if (ctx.hasRole(DocumentAccessContext.Role.ADMIN)) {
             return; // admin short-circuit
         }
 
@@ -91,7 +93,7 @@ public class DocumentAccessManager {
 
         var ctx = current();
         
-        if (DocumentPermission.ADMIN_BYPASS_USERNAME.equals(ctx.principal())) {
+        if (ctx.hasRole(DocumentAccessContext.Role.ADMIN)) {
             return; // admin short-circuit
         }
 

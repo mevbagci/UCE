@@ -1,23 +1,22 @@
 package org.texttechnologylab.uce.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import freemarker.template.Configuration;
-import io.javalin.Javalin;
-import io.javalin.config.JavalinConfig;
-import io.javalin.http.staticfiles.Location;
-import io.javalin.json.JsonMapper;
-import io.modelcontextprotocol.server.McpServer;
-import io.modelcontextprotocol.server.McpSyncServer;
-import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
-import io.modelcontextprotocol.spec.McpSchema;
-import jakarta.servlet.MultipartConfigElement;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.UUID;
+
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.MissingOptionException;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.apache.jena.sparql.function.library.leviathan.log;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -48,19 +47,37 @@ import org.texttechnologylab.uce.search.LayeredSearch;
 import org.texttechnologylab.uce.web.auth.AuthenticationRouteRegister;
 import org.texttechnologylab.uce.web.freeMarker.Renderer;
 import org.texttechnologylab.uce.web.freeMarker.RequestContextHolder;
-import org.texttechnologylab.uce.web.routes.*;
+import org.texttechnologylab.uce.web.routes.AnalysisApi;
+import org.texttechnologylab.uce.web.routes.AuthenticationApi;
+import org.texttechnologylab.uce.web.routes.CorpusUniverseApi;
+import org.texttechnologylab.uce.web.routes.DocumentApi;
+import org.texttechnologylab.uce.web.routes.ImportExportApi;
+import org.texttechnologylab.uce.web.routes.MapApi;
+import org.texttechnologylab.uce.web.routes.McpApi;
+import org.texttechnologylab.uce.web.routes.RAGApi;
+import org.texttechnologylab.uce.web.routes.SearchApi;
+import org.texttechnologylab.uce.web.routes.WikiApi;
 
-import java.io.*;
-import java.lang.reflect.Type;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
-import static io.javalin.apibuilder.ApiBuilder.*;
+import freemarker.template.Configuration;
+import io.javalin.Javalin;
+import static io.javalin.apibuilder.ApiBuilder.after;
+import static io.javalin.apibuilder.ApiBuilder.before;
+import static io.javalin.apibuilder.ApiBuilder.delete;
+import static io.javalin.apibuilder.ApiBuilder.get;
+import static io.javalin.apibuilder.ApiBuilder.path;
+import static io.javalin.apibuilder.ApiBuilder.post;
+import io.javalin.config.JavalinConfig;
+import io.javalin.http.staticfiles.Location;
+import io.javalin.json.JsonMapper;
+import io.modelcontextprotocol.server.McpServer;
+import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
+import io.modelcontextprotocol.spec.McpSchema;
+import jakarta.servlet.MultipartConfigElement;
 
 public class App {
     private static final Configuration configuration = Configuration.getDefaultConfiguration();
@@ -401,7 +418,10 @@ public class App {
                                                 ? uceUser.getUsername()
                                                 : DocumentPermission.PUBLIC_USERNAME;
 
-                            var accessContext = contextFactory.getObject(principal);
+                            var accessContext = contextFactory.getObject(
+                                principal, 
+                                uceUser != null ? uceUser.getRoles() : null
+                            );
                             var guard = accessManager.as(accessContext);
                             ctx.attribute("documentAccessGuard", guard);
                         }
