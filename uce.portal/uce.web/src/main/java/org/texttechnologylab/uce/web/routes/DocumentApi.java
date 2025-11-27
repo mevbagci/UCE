@@ -322,7 +322,7 @@ public class DocumentApi implements UceApi {
                 DefaultPaneRenderer.HANDLER_KEY,
                 null
         ));
-        seenKeys.add("default");
+        seenKeys.add("document_reader_pdf_view");
 
         if (config != null && config.getRenderModes() != null) {
             for (RenderModeConfig mode : config.getRenderModes()) {

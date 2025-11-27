@@ -136,14 +136,9 @@ public class FeedbackDocumentMapper {
     private List<FeedbackDocument.CardSection> buildSections(Document document) {
         var sections = new ArrayList<FeedbackDocument.CardSection>();
 
-        var summaryCards = buildSummaryCards(document);
-        if (!summaryCards.isEmpty()) {
-            sections.add(new FeedbackDocument.CardSection("Zusammenfassung", summaryCards));
-        }
-
         var imageCards = buildImageCards(document);
         if (!imageCards.isEmpty()) {
-            sections.add(new FeedbackDocument.CardSection("Visualisierungen", imageCards));
+            sections.add(new FeedbackDocument.CardSection("Diagramme", imageCards));
         }
 
         return sections;
@@ -159,7 +154,7 @@ public class FeedbackDocumentMapper {
             }
             String dataUri = image.getHTMLImgSrc();
             var spec = new FeedbackDocument.ChartSpec("image", List.of(), List.of(dataUri));
-            cards.add(new FeedbackDocument.ChartCard("Visualisierung " + index, "", spec));
+            cards.add(new FeedbackDocument.ChartCard(" ", "", spec));
             index++;
         }
         return cards;
