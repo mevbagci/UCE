@@ -2,8 +2,10 @@ package org.texttechnologylab.uce.web.routes;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+
 import freemarker.template.Configuration;
 import io.javalin.http.Context;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.ApplicationContext;
@@ -32,9 +34,16 @@ import org.texttechnologylab.uce.web.render.feedback.FeedbackDocumentMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+
+import org.texttechnologylab.models.authentication.DocumentPermission;
+import org.texttechnologylab.uce.common.config.corpusConfig.RenderModeConfig;
+import org.texttechnologylab.uce.common.security.DocumentAccessContext;
+import org.texttechnologylab.uce.common.security.DocumentAccessManager;
 
 public class DocumentApi implements UceApi {
     private S3StorageService s3StorageService;
@@ -238,7 +247,7 @@ public class DocumentApi implements UceApi {
             var modes = buildRenderModes(corpusConfig);
             var selectedKey = Optional.ofNullable(ctx.queryParam("mode"))
                     .filter(key -> modes.stream().anyMatch(m -> m.key().equals(key)))
-                    .orElse("default");
+                    .orElse(DefaultPaneRenderer.HANDLER_KEY);
             var activeMode = modes.stream()
                     .filter(m -> m.key().equals(selectedKey))
                     .findFirst()
@@ -251,8 +260,12 @@ public class DocumentApi implements UceApi {
                     .renderer(activeMode.handler())
                     .orElseGet(() -> rendererRegistry.renderer(DefaultPaneRenderer.HANDLER_KEY).orElseThrow());
 
+            UceUser currentUser = ctx.sessionAttribute("uceUser");
+            var principal = currentUser != null ? currentUser.getUsername() : DocumentPermission.PUBLIC_USERNAME;
+            var feedback = feedbackMapper.map(doc, principal);
+
             var renderContext = RenderContext.builder(corpus, doc)
-                    .payload(FeedbackDocument.class, feedbackMapper.map(doc))
+                    .payload(FeedbackDocument.class, feedback)
                     .build();
 
             RenderResult panes;
@@ -299,16 +312,34 @@ public class DocumentApi implements UceApi {
     };
 
     private List<RenderModeDescriptor> buildRenderModes(CorpusConfig config) {
-        var descriptors = new ArrayList<RenderModeDescriptor>();
-        descriptors.add(new RenderModeDescriptor(
-                "default", "Standardansicht", DefaultPaneRenderer.HANDLER_KEY, null));
+        List<RenderModeDescriptor> descriptors = new ArrayList<>();
+        Set<String> seenKeys = new HashSet<>();
 
-        for (var mode : config.getRenderModes()) {
-            descriptors.add(new RenderModeDescriptor(
-                    mode.getKey(),
-                    mode.getName(),
-                    mode.getHandler(),
-                    mode.getDescription()));
+        // Default-/PDF-View immer zuerst
+        descriptors.add(new RenderModeDescriptor(
+                "document_reader_pdf_view",
+                "PDF", // UI-Text holen wir später aus LanguageResources
+                DefaultPaneRenderer.HANDLER_KEY,
+                null
+        ));
+        seenKeys.add("default");
+
+        if (config != null && config.getRenderModes() != null) {
+            for (RenderModeConfig mode : config.getRenderModes()) {
+                if (mode == null || mode.getKey() == null) {
+                    continue;
+                }
+                if (seenKeys.contains(mode.getKey())) { // Skip duplicates
+                    continue;
+                }
+
+                descriptors.add(new RenderModeDescriptor(
+                        mode.getKey(),
+                        mode.getName(),
+                        mode.getHandler(),
+                        mode.getDescription()
+                ));
+            }
         }
         return descriptors;
     }

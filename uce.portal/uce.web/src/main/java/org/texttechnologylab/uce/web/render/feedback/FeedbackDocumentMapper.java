@@ -1,7 +1,7 @@
 package org.texttechnologylab.uce.web.render.feedback;
 
-import org.texttechnologylab.uce.common.models.corpus.Document;
 import org.texttechnologylab.models.authentication.DocumentPermission;
+import org.texttechnologylab.uce.common.models.corpus.Document;
 import org.texttechnologylab.uce.common.models.corpus.Image;
 import org.texttechnologylab.uce.common.models.corpus.UCEMetadata;
 
@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,7 +20,7 @@ import java.util.regex.Pattern;
  */
 public class FeedbackDocumentMapper {
 
-    public FeedbackDocument map(Document document) {
+    public FeedbackDocument map(Document document, String principal) {
         var builder = FeedbackDocument.builder()
                 .documentId(defaultString(document.getDocumentId(), String.valueOf(document.getId())))
                 .documentTitle(defaultString(document.getDocumentTitle(), ""))
@@ -66,6 +65,7 @@ public class FeedbackDocumentMapper {
         builder.topUrls(extractTopUrls(document));
         builder.sections(buildSections(document));
         builder.permissions(mapPermissions(document));
+        builder.effectivePermission(resolveEffectivePermission(document, principal).orElse(null));
 
         return builder.build();
     }
@@ -196,13 +196,59 @@ public class FeedbackDocumentMapper {
     }
 
     private List<FeedbackDocument.Permission> mapPermissions(Document document) {
-        var perms = Optional.ofNullable(document.getPermissions()).orElse(Set.of());
+        var perms = Optional.ofNullable(document.getPermissions()).orElse(java.util.Set.of());
         return perms.stream()
+                .filter(permission -> permission.getType() != DocumentPermission.DOCUMENT_PERMISSION_TYPE.EFFECTIVE)
                 .map(permission -> new FeedbackDocument.Permission(
-                        FeedbackDocument.PermissionType.valueOf(permission.getType().name()),
-                        FeedbackDocument.PermissionLevel.valueOf(permission.getLevel().name()),
+                        mapPermissionType(permission.getType()),
+                        mapPermissionLevel(permission.getLevel()),
                         permission.getName()))
                 .toList();
+    }
+
+    private Optional<FeedbackDocument.Permission> resolveEffectivePermission(Document document, String principal) {
+        var perms = Optional.ofNullable(document.getPermissions()).orElse(java.util.Set.of());
+
+        if (perms.isEmpty()) {
+            var principalName = (principal != null && !principal.isBlank())
+                    ? principal
+                    : DocumentPermission.PUBLIC_USERNAME;
+            return Optional.of(new FeedbackDocument.Permission(
+                    FeedbackDocument.PermissionType.USER,
+                    FeedbackDocument.PermissionLevel.READ,
+                    principalName));
+        }
+
+        if (principal == null || principal.isBlank()) {
+            return Optional.empty();
+        }
+
+        return perms.stream()
+                .filter(permission -> permission.getType() == DocumentPermission.DOCUMENT_PERMISSION_TYPE.EFFECTIVE)
+                .filter(permission -> principal.equals(permission.getName()))
+                .findFirst()
+                .map(permission -> new FeedbackDocument.Permission(
+                        FeedbackDocument.PermissionType.USER,
+                        mapPermissionLevel(permission.getLevel()),
+                        permission.getName()));
+    }
+
+    private FeedbackDocument.PermissionType mapPermissionType(DocumentPermission.DOCUMENT_PERMISSION_TYPE type) {
+        return switch (type) {
+            case USER -> FeedbackDocument.PermissionType.USER;
+            case GROUP -> FeedbackDocument.PermissionType.GROUP;
+            case EFFECTIVE -> FeedbackDocument.PermissionType.USER; // fallback, should be handled elsewhere
+        };
+    }
+
+    private FeedbackDocument.PermissionLevel mapPermissionLevel(DocumentPermission.DOCUMENT_PERMISSION_LEVEL level) {
+        return switch (level) {
+            case NONE -> FeedbackDocument.PermissionLevel.NONE;
+            case READ -> FeedbackDocument.PermissionLevel.READ;
+            case WRITE -> FeedbackDocument.PermissionLevel.WRITE;
+            case OWNER -> FeedbackDocument.PermissionLevel.OWNER;
+            case ADMIN -> FeedbackDocument.PermissionLevel.ADMIN;
+        };
     }
 
     private int extractParticipantCount(Document document) {
