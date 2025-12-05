@@ -3,6 +3,7 @@ package org.texttechnologylab.uce.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.ApplicationContext;
+import org.texttechnologylab.models.authentication.DocumentPermission;
 import org.texttechnologylab.uce.common.config.CorpusConfig;
 import org.texttechnologylab.uce.common.exceptions.ExceptionUtils;
 import org.texttechnologylab.uce.common.models.authentication.UceUser;
@@ -64,7 +65,7 @@ public class Search_SemanticRoleImpl implements Search {
 
     @Override
     public SearchState initSearch(UceUser user) {
-        var documentSearchResult = executeSearchOnDatabases(true);
+        var documentSearchResult = executeSearchOnDatabases(true, user);
         if (documentSearchResult == null)
             throw new NullPointerException("Semantic Role Init Search returned null - not empty.");
 
@@ -78,6 +79,9 @@ public class Search_SemanticRoleImpl implements Search {
         searchState.setFoundTaxons(documentSearchResult.getFoundTaxons());
         searchState.setFoundTimes(documentSearchResult.getFoundTimes());
 
+        // Add user name for authentication
+        searchState.setSessionUser(user != null ? user.getUsername() : DocumentPermission.PUBLIC_USERNAME);
+ 
         return searchState;
     }
 
@@ -85,7 +89,7 @@ public class Search_SemanticRoleImpl implements Search {
     public SearchState getSearchHitsForPage(int page, UceUser user) {
         // Adjust the current page and execute the search again
         this.searchState.setCurrentPage(page);
-        var documentSearchResult = executeSearchOnDatabases(false);
+        var documentSearchResult = executeSearchOnDatabases(false, user);
         if (documentSearchResult == null)
             throw new NullPointerException("Semantic Role Search returned NULL - not empty.");
         var documents = ExceptionUtils.tryCatchLog(
@@ -157,7 +161,7 @@ public class Search_SemanticRoleImpl implements Search {
      * @param countAll determines whether we also count all search hits or just using pagination
      * @return
      */
-    private DocumentSearchResult executeSearchOnDatabases(boolean countAll) {
+    private DocumentSearchResult executeSearchOnDatabases(boolean countAll, UceUser sessionUser) {
         return ExceptionUtils.tryCatchLog(
                 () -> db.semanticRoleSearchForDocuments((searchState.getCurrentPage() - 1) * searchState.getTake(),
                         searchState.getTake(),

@@ -1,8 +1,11 @@
 package org.texttechnologylab.models.authentication;
 
 
+import java.time.Instant;
+
 import lombok.Getter;
 import lombok.Setter;
+
 import org.texttechnologylab.uce.common.models.ModelBase;
 import org.texttechnologylab.uce.common.models.corpus.Document;
 
@@ -17,6 +20,14 @@ import javax.persistence.*;
 )
 @Inheritance(strategy = InheritanceType.JOINED)
 public class DocumentPermission extends ModelBase {
+
+    // Special username that always has admin permissions.
+    // Cross-reference database/14_createPermittedDocumentsFunction.sql
+    public static final String ADMIN_BYPASS_USERNAME = "__admin__";
+
+    // Special username representing public (not logged in) users.
+    public static final String PUBLIC_USERNAME = "__public__";
+
     /**
      * This class holds the permissions a user has on a single document.
      * We utilize Keycloak to perform authentication, on login we receive the user info and his group memberships.
@@ -37,9 +48,10 @@ public class DocumentPermission extends ModelBase {
     // NOTE this should not be reordered, as it would break existing databases!
     public enum DOCUMENT_PERMISSION_LEVEL {
         NONE,
-        READ,
-        WRITE,
-        OWNER
+        READ,   // View permission
+        WRITE,  // Change permission
+        OWNER,  // Delete permission & grant READ/WRITE permission
+        ADMIN   // Modify permission list
     }
 
     @Setter
@@ -64,4 +76,23 @@ public class DocumentPermission extends ModelBase {
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "document_id", nullable = false)
     private Document document;
+
+    @Setter
+    @Getter
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
+
+    @Setter
+    @Getter
+    @Column(nullable = false)
+    private Instant updatedAt = Instant.now();
+
+    @Setter
+    @Getter
+    @Column(nullable = false, updatable = false)
+    private String grantedBy = ADMIN_BYPASS_USERNAME;
+
+    @Setter
+    @Getter
+    private String updatedBy;
 }

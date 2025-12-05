@@ -36,6 +36,7 @@ import org.texttechnologylab.models.authentication.DocumentPermission;
 import org.texttechnologylab.uce.common.config.CommonConfig;
 import org.texttechnologylab.uce.common.config.CorpusConfig;
 import org.texttechnologylab.uce.common.exceptions.DatabaseOperationException;
+import org.texttechnologylab.uce.common.exceptions.DocumentAccessDeniedException;
 import org.texttechnologylab.uce.common.exceptions.ExceptionUtils;
 import org.texttechnologylab.uce.common.models.UIMAAnnotation;
 import org.texttechnologylab.uce.common.models.biofid.BiofidTaxon;
@@ -163,8 +164,9 @@ public class Importer {
      * Starts the importing processing of this instance.
      *
      * @throws DatabaseOperationException
+     * @throws DocumentAccessDeniedException 
      */
-    public void start(int numThreads) throws DatabaseOperationException {
+    public void start(int numThreads) throws DatabaseOperationException, DocumentAccessDeniedException {
         logger.info(
                 "\n _   _ _____  _____   _____                           _   \n" +
                         "| | | /  __ \\|  ___| |_   _|                         | |  \n" +
@@ -186,8 +188,12 @@ public class Importer {
 
     /**
      * Stores an uploaded xmi to a given corpus
+     * 
+     * @throws DatabaseOperationException
+     * @throws DocumentAccessDeniedException
+     * 
      */
-    public Long storeUploadedXMIToCorpusAsync(InputStream inputStream, Corpus corpus, String fileName, String documentId) throws DatabaseOperationException {
+    public Long storeUploadedXMIToCorpusAsync(InputStream inputStream, Corpus corpus, String fileName, String documentId) throws DatabaseOperationException, DocumentAccessDeniedException {
         logger.info("Trying to store an uploaded UIMA file...");
 
         // Before we try to parse the document, we need to check if we have UCEMetadata filters for this corpus.
@@ -209,8 +215,9 @@ public class Importer {
 
     /**
      * Imports all UIMA xmi files in a folder
+     * @throws DocumentAccessDeniedException 
      */
-    public void storeCorpusFromFolderAsync(String folderName, int numThreads) throws DatabaseOperationException {
+    public void storeCorpusFromFolderAsync(String folderName, int numThreads) throws DatabaseOperationException, DocumentAccessDeniedException {
         var executor = Executors.newFixedThreadPool(numThreads);
         List<CompletableFuture<Void>> futures = new ArrayList<>();
 
@@ -374,8 +381,9 @@ public class Importer {
      * @param corpusConfig
      * @param db
      * @return A {@link Corpus} object if an existing corpus was found otherwise null
+     * @throws DocumentAccessDeniedException 
      */
-    public static Corpus CreateDBCorpus(Corpus corpus, CorpusConfig corpusConfig, PostgresqlDataInterface_Impl db) throws DatabaseOperationException {
+    public static Corpus CreateDBCorpus(Corpus corpus, CorpusConfig corpusConfig, PostgresqlDataInterface_Impl db) throws DatabaseOperationException, DocumentAccessDeniedException {
         corpus.setName(corpusConfig.getName());
         corpus.setLanguage(corpusConfig.getLanguage());
         corpus.setAuthor(corpusConfig.getAuthor());
@@ -388,8 +396,10 @@ public class Importer {
             if (existingCorpus != null) { // If we have the corpus, use that.
                 return existingCorpus;
             }
-            throw new DatabaseOperationException("The corpus config specified to add to an existing corpus, " +
-                    "but no corpus with the name " + corpusConfig.getName() + " exists.");
+            // If we want to add to an existing corpus but it does not exist yet,
+            // create it now to make the first import idempotent.
+            db.saveCorpus(corpus);
+            return corpus;
         }
         db.saveCorpus(corpus);
         return null;
@@ -514,6 +524,17 @@ public class Importer {
                 logger.info("Setting document id from \"" + metadata.getDocumentId() + "\" to \"" + documentId + "\"");
                 metadata.setDocumentId(documentId);
             }
+            // Ensure documentId is numeric-only to satisfy downstream expectations
+            var rawDocId = metadata.getDocumentId();
+            var numericDocId = rawDocId != null ? rawDocId.replaceAll("\\D+", "") : "";
+            if (numericDocId.isBlank()) {
+                numericDocId = String.valueOf(System.currentTimeMillis());
+                logger.warn("DocumentId \"" + rawDocId + "\" is non-numeric; falling back to " + numericDocId);
+            } else if (!numericDocId.equals(rawDocId)) {
+                logger.info("Coerced non-numeric documentId \"" + rawDocId + "\" to \"" + numericDocId + "\"");
+            }
+            metadata.setDocumentId(numericDocId);
+
             var document = new Document(metadata.getLanguage(),
                     metadata.getDocumentTitle(),
                     metadata.getDocumentId(),
@@ -779,8 +800,9 @@ public class Importer {
 
     /**
      * Selects and sets the logical links between documents, annotations and more.
+     * @throws DocumentAccessDeniedException 
      */
-    private void setLogicLinks(Document document, JCas jCas, long corpusId, String filePath) throws DatabaseOperationException {
+    private void setLogicLinks(Document document, JCas jCas, long corpusId, String filePath) throws DatabaseOperationException, DocumentAccessDeniedException {
         // Document -> Document Links
         var documentLinks = new ArrayList<DocumentLink>();
         JCasUtil.select(jCas, DLink.class).forEach(l -> {

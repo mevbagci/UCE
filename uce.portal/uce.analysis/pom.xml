@@ -54,7 +54,7 @@
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>09ae3a8372</version>
+            <version>3.0.14</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.springframework/spring-beans -->
