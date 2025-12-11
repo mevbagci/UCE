@@ -6,6 +6,7 @@ target/
 ### Env files ###
 .env
 documentation/venv
+rag/linux-env
 
 ### Logging ###
 uce.portal/logs/
@@ -53,3 +54,5 @@ build/
 /rag/src/cBERT/data
 /rag/src/cBERT/models
 __pycache__
+data/*
+

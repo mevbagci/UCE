@@ -9,7 +9,7 @@ import warnings
 import traceback
 
 from cBERT.cBERT import CCCBERT
-from flask import Flask, g, render_template, request, jsonify, current_app
+from flask import Flask, g, render_template, request, jsonify, current_app, Response, stream_with_context
 from sklearn.cluster import KMeans
 from scipy.spatial.distance import euclidean
 from scipy.sparse.csgraph import minimum_spanning_tree
@@ -270,6 +270,31 @@ def context():
         print(ex)
     return jsonify(result)
 
+@app.route('/rag/complete/stream', methods=['POST'])
+def rag_complete_stream():
+    try:
+        data = request.get_json()
+        print(data)
+        messages = data['promptMessages']
+        api_key = data['apiKey']
+        model = data['model']
+        url = data['url']
+    except Exception as ex:
+        result = {
+            "status": 400,
+            "message": "There was an exception caught while trying to complete the chat: " + str(ex)
+        }
+        print("Exception while trying to complete chat: ")
+        print(ex)
+        return jsonify(result)
+
+    return Response(
+        stream_with_context(
+            get_instruct_model(model, url).complete_stream(messages, api_key)
+        ),
+        mimetype='application/json'
+    )
+
 @app.route('/rag/complete', methods=['POST'])
 def rag_complete():
     result = {
@@ -282,7 +307,11 @@ def rag_complete():
         api_key = data['apiKey']
         model = data['model']
         url = data['url']
-        result['message'] = get_instruct_model(model, url).complete(messages, api_key)
+        if "tools" in data:
+            tools = data["tools"]
+        else:
+            tools = None
+        result['message'] = get_instruct_model(model, url).complete(messages, api_key, tools)
         result['status'] = 200
     except Exception as ex:
         result['message'] = "There was an exception caught while trying to complete the chat: " + str(ex)
@@ -309,9 +338,13 @@ def get_embedding_model(backend: Union[str, None] = None, config: Union[Dict, No
 
 def get_instruct_model(model_name, url):
     '''Gets the llm that has the actual conversation'''
-    if model_name not in current_app.config:
-        current_app.config[model_name] = InstructLLM(model_name, url)
-    return current_app.config[model_name]
+    # dont cache ollama models, these are not loading large models locally
+    if InstructLLM.should_cache(model_name):
+        if model_name not in current_app.config:
+            current_app.config[model_name] = InstructLLM(model_name, url)
+        return current_app.config[model_name]
+    # just recreate every time
+    return InstructLLM(model_name, url)
 
 def get_CCCBERT_model():
     '''Gets the CCC-BERT model to check whether we need context or not'''

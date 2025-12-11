@@ -7,30 +7,30 @@
 
 services:
 
-  uce-fuseki-sparql:
-    container_name: uce-fuseki-sparql
-    image: docker.texttechnologylab.org/uce/uce-fuseki-sparql:0.0.1
-    ports:
-      - "8030:5430"
-    volumes:
-      - ${TDB2_DATA}:/fuseki/databases/${TDB2_ENDPOINT}
-    environment:
-      - JAVA_OPTIONS=${JAVA_OPTIONS}
-    command: --update --tdb2 --port 5430 --loc /fuseki/databases/${TDB2_ENDPOINT} /${TDB2_ENDPOINT}
-    networks:
-      - app_net
+  # uce-fuseki-sparql:
+  #   container_name: uce-fuseki-sparql
+  #   image: docker.texttechnologylab.org/uce/uce-fuseki-sparql:0.0.1
+  #   ports:
+  #     - "8030:5430"
+  #   volumes:
+  #     - ${TDB2_DATA}:/fuseki/databases/${TDB2_ENDPOINT}
+  #   environment:
+  #     - JAVA_OPTIONS=${JAVA_OPTIONS}
+  #   command: --update --tdb2 --port 5430 --loc /fuseki/databases/${TDB2_ENDPOINT} /${TDB2_ENDPOINT}
+  #   networks:
+  #     - app_net
     
-  uce-rag-service:
-    container_name: uce-rag-service
-    build:
-      context: .
-      dockerfile: ./rag/Dockerfile
-    ports:
-      - "8080:5678" 
-    depends_on:
-      - uce-postgresql-db 
-    networks:
-      - app_net
+  # uce-rag-service:
+  #   container_name: uce-rag-service
+  #   build:
+  #     context: .
+  #     dockerfile: ./rag/Dockerfile
+  #   ports:
+  #     - "8080:5678" 
+  #   depends_on:
+  #     - uce-postgresql-db 
+  #   networks:
+  #     - app_net
 
   uce-web:
     container_name: uce-web
@@ -40,13 +40,23 @@ services:
     ports:
       - "8008:4567"
     depends_on:
-      - uce-postgresql-db
+      uce-postgresql-db:
+        condition: service_healthy
     networks:
       - app_net
     volumes:
       - "${UCE_CONFIG_PATH}:/app/config/uceConfig.json"
       - "./database:/app/database"
-    command: ["/bin/sh", "-c", "sleep 7 && java --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.util/java.base=ALL-UNNAMED -jar ./target/webportal-jar-with-dependencies.jar -cf /app/config/uceConfig.json"]
+    command: [
+      "java",
+      "--add-opens=java.base/java.util=ALL-UNNAMED",
+      "--add-opens=java.util/java.base=ALL-UNNAMED",
+      "-jar",
+      "./target/webportal-jar-with-dependencies.jar",
+      "-cf",
+      "/app/config/uceConfig.json"
+    ]
+
 
   uce-importer:
     container_name: uce-importer
@@ -54,14 +64,23 @@ services:
       context: .
       dockerfile: ./uce.portal/uce.corpus-importer/Dockerfile
     depends_on:
-      - uce-postgresql-db
+      uce-postgresql-db:
+        condition: service_healthy
     networks:
       - app_net
     volumes:
       - "./database:/app/database"
-      # MOUNT HERE ALL UIMA CORPORA INTO THE '/app/input/corpora/zobodat' PATH 
-      - "./../test_data/corpora/zobodat:/app/input/corpora/zobodat"
-    command: [ "/bin/sh", "-c", "sleep 7 && java -jar ./target/importer.jar -srcDir /app/input/corpora/ -num 1 -t ${IMPORTER_THREADS}" ]
+      # MOUNT HERE ALL UIMA CORPORA INTO THE '/app/input/corpora/' PATH - EXAMPLE BELOW FOR ZOBODAT CORPUS: 
+      # - "./../test_data/corpora/zobodat:/app/input/corpora/zobodat"
+      - "./../uce_testcorpora:/app/input/corpora/uce_testcorpora"
+    command: [
+      "java",
+      "-jar",
+      "./target/importer.jar",
+      "-srcDir", "/app/input/corpora/",
+      "-num", "1",
+      "-t", "${IMPORTER_THREADS}"
+    ]
 
   uce-postgresql-db:
     container_name: uce-postgresql-db
@@ -73,12 +92,18 @@ services:
     ports:
       - "8002:5432"
     volumes:
-      #- ./../backups/2025-06-25_BIOfid-Nova-Data/db-data:/var/lib/postgresql/data
+      #- ./../backups/2025-07-03_BIOfid_Nova-Data/db-data:/var/lib/postgresql/data
       - ${POSTGRESQL_CONFIG}:/etc/postgresql.conf
     command: -c config_file=/etc/postgresql.conf
     networks:
       - app_net
-      
+    healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U postgres"]
+        interval: 5s
+        timeout: 5s
+        start_period: 10s
+        retries: 20
+
   uce-minio-storage:
     image: minio/minio
     container_name: minio
